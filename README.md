@@ -20,8 +20,8 @@ vm11-firewall/
 
 | Ambiente | Descrição | README |
 |---|---|---|
-| **Teste** | 7 containers simulando as 6 VLANs; nftables dentro do container | [ambiente-teste/README.md](./ambiente-teste/README.md) |
-| **Real** | VM OpenStack, `network_mode: host`, VLAN via netplan, LDAP integrado | [ambiente-real/README.md](./ambiente-real/README.md) |
+| **Teste** | 7 containers simulando as 6 VLANs; nftables dentro do container | [ambiente-teste/README.md](./vm11-firewall/ambiente-teste/README.md) |
+| **Real** | VM OpenStack, `network_mode: host`, VLAN via netplan, LDAP integrado | [ambiente-real/README.md](.vm11-firewall/ambiente-real/README.md) |
 
 ---
 
