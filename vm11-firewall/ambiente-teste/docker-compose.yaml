@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  firewall:
+    build: ./firewall
+    container_name: vm11-firewall
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    ports:
+      - "5000:5000"   
+    networks:
+      mgmt:
+        ipv4_address: 172.16.10.254
+      server:
+        ipv4_address: 172.16.20.254
+      dmz:
+        ipv4_address: 172.16.30.254
+      monitor:
+        ipv4_address: 172.16.40.254
+      netdev:
+        ipv4_address: 172.16.50.254
+      users:
+        ipv4_address: 172.16.60.254
+
+  # Container simulando a rede MGMT
+  client-mgmt:
+    image: nicolaka/netshoot
+    container_name: client-mgmt
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    command: >
+      sh -c "sleep 2 && ip route del default && ip route add default via 172.16.10.254 && tail -f /dev/null"
+    networks:
+      mgmt:
+        ipv4_address: 172.16.10.10
+
+  # Container simulando a rede SERVER
+  client-server:
+    image: nicolaka/netshoot
+    container_name: client-server
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    command: >
+      sh -c "sleep 2 && ip route del default && ip route add default via 172.16.20.254 && \
+      nc -lk -p 80 & nc -lk -p 443 & nc -lk -p 22 & tail -f /dev/null"
+    networks:
+      server:
+        ipv4_address: 172.16.20.10
+
+  # Container simulando a rede DMZ
+  client-dmz:
+    image: nicolaka/netshoot
+    container_name: client-dmz
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    command: >
+      sh -c "sleep 2 && ip route del default && ip route add default via 172.16.30.254 && tail -f /dev/null"
+    networks:
+      dmz:
+        ipv4_address: 172.16.30.10
+
+  # Container simulando a rede MONITOR
+  client-monitor:
+    image: nicolaka/netshoot
+    container_name: client-monitor
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    command: >
+      sh -c "sleep 2 && ip route del default && ip route add default via 172.16.40.254 && tail -f /dev/null"
+    networks:
+      monitor:
+        ipv4_address: 172.16.40.10
+
+  # Container simulando a rede NETDEV
+  client-netdev:
+    image: nicolaka/netshoot
+    container_name: client-netdev
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    command: >
+      sh -c "sleep 2 && ip route del default && ip route add default via 172.16.50.254 && \
+      nc -lk -u -p 161 & tail -f /dev/null"
+    networks:
+      netdev:
+        ipv4_address: 172.16.50.10
+
+  # Container simulando a rede USERS
+  client-users:
+    image: nicolaka/netshoot
+    container_name: client-users
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    command: >
+      sh -c "sleep 2 && ip route del default && ip route add default via 172.16.60.254 && tail -f /dev/null"
+    networks:
+      users:
+        ipv4_address: 172.16.60.10
+
+networks:
+  mgmt:
+    ipam:
+      config:
+        - subnet: 172.16.10.0/24
+  server:
+    ipam:
+      config:
+        - subnet: 172.16.20.0/24
+  dmz:
+    ipam:
+      config:
+        - subnet: 172.16.30.0/24
+  monitor:
+    ipam:
+      config:
+        - subnet: 172.16.40.0/24
+  netdev:
+    ipam:
+      config:
+        - subnet: 172.16.50.0/24
+  users:
+    ipam:
+      config:
+        - subnet: 172.16.60.0/24

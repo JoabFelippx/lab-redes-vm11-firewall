@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VM11 — Firewall Manager</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --accent:   #58a6ff;
+    --success:  #3fb950;
+    --danger:   #f85149;
+    --warn:     #d29922;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --mono:     'JetBrains Mono', 'Fira Code', monospace;
+    --sans:     'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+  }
+
+  /* ── TOP BAR ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    font-size: .95rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .brand-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, #1f6feb 0%, #58a6ff 100%);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background .3s;
+  }
+  .status-dot.ok  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .status-dot.err { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+  .status-label { font-size: .8rem; color: var(--muted); }
+
+  /* ── LAYOUT ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    min-height: calc(100vh - 56px);
+  }
+
+  /* ── SIDEBAR ── */
+  aside {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  aside h2 {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+  }
+  .vlan-list { display: flex; flex-direction: column; gap: .5rem; }
+  .vlan-chip {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .5rem .75rem;
+    border-radius: 6px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+    font-size: .85rem;
+  }
+  .vlan-chip:hover { background: rgba(255,255,255,.08); border-color: var(--accent); }
+  .vlan-chip.active { border-color: var(--accent); background: rgba(88,166,255,.1); }
+  .vlan-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .vlan-name { font-weight: 600; }
+  .vlan-sub  { color: var(--muted); font-size: .75rem; margin-left: auto; font-family: var(--mono); }
+
+  /* ── MAIN ── */
+  main { padding: 2rem; display: flex; flex-direction: column; gap: 2rem; overflow-x: hidden; }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .section-title { font-size: 1.1rem; font-weight: 600; }
+  .section-sub   { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-body { padding: 1.25rem; }
+
+  /* ── FORM ── */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+  .field { display: flex; flex-direction: column; gap: .4rem; }
+  .field label {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+  }
+  .field select,
+  .field input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: .5rem .75rem;
+    border-radius: 6px;
+    font-size: .9rem;
+    font-family: var(--sans);
+    transition: border-color .15s;
+    outline: none;
+    width: 100%;
+  }
+  .field select:focus,
+  .field input:focus { border-color: var(--accent); }
+  .field select option { background: var(--surface); }
+
+  .form-actions { display: flex; gap: .75rem; margin-top: 1rem; align-items: center; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: .5rem 1.25rem;
+    border-radius: 6px;
+    border: none;
+    font-size: .875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+    font-family: var(--sans);
+  }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn-primary  { background: var(--accent);   color: #000; }
+  .btn-danger   { background: var(--danger);   color: #fff; }
+  .btn-ghost    { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+  .btn-sm { padding: .3rem .75rem; font-size: .8rem; }
+
+  /* ── RULE TABLE ── */
+  .rule-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .rule-table th {
+    text-align: left;
+    padding: .6rem 1rem;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .rule-table td {
+    padding: .75rem 1rem;
+    border-bottom: 1px solid rgba(48,54,61,.5);
+    vertical-align: middle;
+  }
+  .rule-table tr:last-child td { border-bottom: none; }
+  .rule-table tr:hover td { background: rgba(255,255,255,.02); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .2rem .55rem;
+    border-radius: 4px;
+    font-size: .75rem;
+    font-weight: 500;
+  }
+  .badge-accept { background: rgba(63,185,80,.15);  color: var(--success); }
+  .badge-drop   { background: rgba(248,81,73,.15);  color: var(--danger); }
+  .badge-system { background: rgba(88,166,255,.12); color: var(--accent); }
+
+  .rule-raw {
+    font-family: var(--mono);
+    font-size: .78rem;
+    color: var(--muted);
+    background: rgba(0,0,0,.3);
+    padding: .2rem .5rem;
+    border-radius: 4px;
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .counter { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+
+  /* ── RAW PANEL ── */
+  pre.raw-nft {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    font-family: var(--mono);
+    font-size: .8rem;
+    color: #a5d6ff;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.6;
+  }
+
+  /* ── TOAST ── */
+  #toast-area {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    z-index: 999;
+  }
+  .toast {
+    padding: .75rem 1.25rem;
+    border-radius: 8px;
+    font-size: .875rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,.5);
+    animation: slideIn .2s ease;
+    max-width: 360px;
+  }
+  .toast-ok  { background: #1a3a24; color: var(--success); border: 1px solid rgba(63,185,80,.3); }
+  .toast-err { background: #3a1a1a; color: var(--danger);  border: 1px solid rgba(248,81,73,.3); }
+  @keyframes slideIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform:none; } }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    text-align: center;
+    padding: 3rem;
+    color: var(--muted);
+    font-size: .9rem;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span>VM11 Firewall Manager</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:.5rem;">
+    <div class="status-dot" id="status-dot"></div>
+    <span class="status-label" id="status-label">verificando…</span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside>
+    <div>
+      <h2>VLANs</h2>
+      <div class="vlan-list" id="vlan-list">
+        <div style="color:var(--muted);font-size:.85rem">carregando…</div>
+      </div>
+    </div>
+    <div>
+      <h2>Ações rápidas</h2>
+      <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.75rem;">
+        <button class="btn btn-ghost" style="text-align:left;width:100%"
+          onclick="document.getElementById('form-section').scrollIntoView({behavior:'smooth'})">
+          ➕ Nova regra
+        </button>
+        <button class="btn btn-ghost" style="text-align:left;width:100%"
+          onclick="loadRaw()">
+          📄 Ver ruleset completo
+        </button>
+        <button class="btn btn-ghost" style="text-align:left;width:100%"
+          onclick="loadRules()">
+          🔄 Recarregar regras
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- FORM SECTION -->
+    <section id="form-section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Nova Regra</div>
+          <div class="section-sub">Adiciona uma regra à chain <code>inet filter forward</code></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span style="font-size:.9rem;font-weight:600;">Configurar regra</span>
+          <span id="rule-preview" style="font-family:var(--mono);font-size:.75rem;color:var(--muted);">—</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field">
+              <label>Origem (src)</label>
+              <select id="f-src" onchange="updatePreview()">
+                <option value="">Qualquer</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Destino (dst)</label>
+              <select id="f-dst" onchange="updatePreview()">
+                <option value="">Qualquer</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Protocolo</label>
+              <select id="f-proto" onchange="updatePreview()">
+                <option value="">Qualquer</option>
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Porta(s) — ex: 80, 443</label>
+              <input id="f-ports" type="text" placeholder="80, 443" oninput="updatePreview()"/>
+            </div>
+            <div class="field">
+              <label>Ação</label>
+              <select id="f-action" onchange="updatePreview()">
+                <option value="accept">✅ Aceitar</option>
+                <option value="drop">❌ Bloquear (+ log)</option>
+                <option value="log">📋 Somente log</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" onclick="addRule()">Adicionar regra</button>
+            <button class="btn btn-ghost" onclick="clearForm()">Limpar</button>
+            <span id="form-msg" style="font-size:.8rem;color:var(--muted)"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RULES TABLE -->
+    <section>
+      <div class="section-header">
+        <div>
+          <div class="section-title">Regras ativas</div>
+          <div class="section-sub" id="rules-count">—</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="loadRules()">🔄 Atualizar</button>
+      </div>
+
+      <div class="card">
+        <div id="rules-container">
+          <div class="empty">Carregando regras…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RAW RULESET -->
+    <section id="raw-section" style="display:none">
+      <div class="section-header">
+        <div class="section-title">Ruleset completo (nft list ruleset)</div>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('raw-section').style.display='none'">✕ Fechar</button>
+      </div>
+      <pre class="raw-nft" id="raw-content">…</pre>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast-area"></div>
+
+<script>
+// ──────────────────────────────────────────────
+// Estado
+// ──────────────────────────────────────────────
+let vlans = {};
+
+// ──────────────────────────────────────────────
+// Toast
+// ──────────────────────────────────────────────
+function toast(msg, ok=true) {
+  const el = document.createElement("div");
+  el.className = `toast ${ok ? "toast-ok" : "toast-err"}`;
+  el.textContent = msg;
+  document.getElementById("toast-area").appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ──────────────────────────────────────────────
+// Status
+// ──────────────────────────────────────────────
+async function checkStatus() {
+  try {
+    const r = await fetch("/api/status");
+    const d = await r.json();
+    const dot = document.getElementById("status-dot");
+    const lbl = document.getElementById("status-label");
+    if (d.nft_available) {
+      dot.className = "status-dot ok";
+      lbl.textContent = `nftables OK · ${d.total_rules} regras`;
+    } else {
+      dot.className = "status-dot err";
+      lbl.textContent = "nftables indisponível";
+    }
+  } catch {
+    document.getElementById("status-dot").className = "status-dot err";
+    document.getElementById("status-label").textContent = "sem conexão";
+  }
+}
+
+// ──────────────────────────────────────────────
+// VLANs
+// ──────────────────────────────────────────────
+async function loadVlans() {
+  const r = await fetch("/api/vlans");
+  vlans = await r.json();
+
+  // sidebar
+  const list = document.getElementById("vlan-list");
+  list.innerHTML = "";
+  for (const [name, data] of Object.entries(vlans)) {
+    const chip = document.createElement("div");
+    chip.className = "vlan-chip";
+    chip.innerHTML = `
+      <span class="vlan-dot" style="background:${data.cor}"></span>
+      <span class="vlan-name">VLAN ${data.vlan}</span>
+      <span>${name}</span>
+      <span class="vlan-sub">${data.subnet}</span>
+    `;
+    chip.onclick = () => {
+      document.querySelectorAll(".vlan-chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      document.getElementById("f-src").value = data.subnet;
+      updatePreview();
+      document.getElementById("form-section").scrollIntoView({behavior:"smooth"});
+    };
+    list.appendChild(chip);
+  }
+
+  // selects
+  const srcSel = document.getElementById("f-src");
+  const dstSel = document.getElementById("f-dst");
+  for (const [name, data] of Object.entries(vlans)) {
+    const mkOpt = () => {
+      const o = document.createElement("option");
+      o.value = data.subnet;
+      o.textContent = `${name} (${data.subnet})`;
+      return o;
+    };
+    srcSel.appendChild(mkOpt());
+    dstSel.appendChild(mkOpt());
+  }
+}
+
+// ──────────────────────────────────────────────
+// Regras
+// ──────────────────────────────────────────────
+async function loadRules() {
+  const container = document.getElementById("rules-container");
+  container.innerHTML = `<div class="empty">Carregando…</div>`;
+
+  const r = await fetch("/api/rules");
+  const d = await r.json();
+
+  if (!d.ok || d.rules.length === 0) {
+    container.innerHTML = `<div class="empty">Nenhuma regra encontrada.<br>Verifique se o nftables está rodando.</div>`;
+    document.getElementById("rules-count").textContent = "0 regras";
+    return;
+  }
+
+  document.getElementById("rules-count").textContent = `${d.rules.length} regra(s) carregada(s)`;
+
+  const table = document.createElement("table");
+  table.className = "rule-table";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Handle</th>
+        <th>Descrição</th>
+        <th>Regra (raw)</th>
+        <th>Pacotes</th>
+        <th></th>
+      </tr>
+    </thead>
+  `;
+  const tbody = document.createElement("tbody");
+
+  for (const rule of d.rules) {
+    const tr = document.createElement("tr");
+
+    // badge
+    let badge = "";
+    if (rule.raw.includes("accept"))     badge = `<span class="badge badge-accept">✅ ACEITAR</span>`;
+    else if (rule.raw.includes("drop"))  badge = `<span class="badge badge-drop">❌ DROP</span>`;
+    else if (rule.raw.includes("policy")) badge = `<span class="badge badge-system">⚙ POLICY</span>`;
+    else                                  badge = `<span class="badge badge-system">ℹ INFO</span>`;
+
+    const isSystem = !rule.handle ||
+      rule.raw.includes("ct state") ||
+      rule.raw.includes("ip protocol icmp") ||
+      rule.raw.includes("policy");
+
+    const counter = rule.packets !== null
+      ? `${rule.packets.toLocaleString()} pkts`
+      : "—";
+
+    tr.innerHTML = `
+      <td><code style="font-family:var(--mono);font-size:.8rem;color:var(--muted)">${rule.handle ?? "—"}</code></td>
+      <td style="min-width:220px">${badge} <span style="margin-left:.4rem;font-size:.82rem">${rule.comment}</span></td>
+      <td><div class="rule-raw" title="${rule.raw}">${rule.raw}</div></td>
+      <td><span class="counter">${counter}</span></td>
+      <td>
+        ${!isSystem && rule.handle
+          ? `<button class="btn btn-danger btn-sm" onclick="deleteRule(${rule.handle})">Remover</button>`
+          : `<span style="font-size:.75rem;color:var(--muted)">sistema</span>`
+        }
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  table.appendChild(tbody);
+  container.innerHTML = "";
+  container.appendChild(table);
+}
+
+// ──────────────────────────────────────────────
+// Adicionar regra
+// ──────────────────────────────────────────────
+async function addRule() {
+  const btn = document.querySelector(".btn-primary");
+  const msg = document.getElementById("form-msg");
+  btn.disabled = true;
+  msg.textContent = "enviando…";
+
+  const body = {
+    src:    document.getElementById("f-src").value,
+    dst:    document.getElementById("f-dst").value,
+    proto:  document.getElementById("f-proto").value,
+    ports:  document.getElementById("f-ports").value,
+    action: document.getElementById("f-action").value,
+  };
+
+  try {
+    const r = await fetch("/api/rules", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast(`Regra adicionada: ${d.rule}`);
+      msg.textContent = "";
+      loadRules();
+      checkStatus();
+    } else {
+      toast(`Erro: ${d.error}`, false);
+      msg.textContent = `Erro: ${d.error}`;
+    }
+  } catch(e) {
+    toast("Falha de comunicação com o servidor", false);
+    msg.textContent = "Falha de comunicação";
+  }
+  btn.disabled = false;
+}
+
+// ──────────────────────────────────────────────
+// Remover regra
+// ──────────────────────────────────────────────
+async function deleteRule(handle) {
+  if (!confirm(`Remover regra handle ${handle}?`)) return;
+  const r = await fetch(`/api/rules/${handle}`, {method: "DELETE"});
+  const d = await r.json();
+  if (d.ok) {
+    toast(`Regra ${handle} removida.`);
+    loadRules();
+    checkStatus();
+  } else {
+    toast(`Erro ao remover: ${d.error}`, false);
+  }
+}
+
+// ──────────────────────────────────────────────
+// Raw ruleset
+// ──────────────────────────────────────────────
+async function loadRaw() {
+  const sec = document.getElementById("raw-section");
+  sec.style.display = "block";
+  document.getElementById("raw-content").textContent = "Carregando…";
+  sec.scrollIntoView({behavior:"smooth"});
+  const r = await fetch("/api/raw");
+  const d = await r.json();
+  document.getElementById("raw-content").textContent = d.ok ? d.raw : "nft indisponível";
+}
+
+// ──────────────────────────────────────────────
+// Preview da regra
+// ──────────────────────────────────────────────
+function updatePreview() {
+  const src    = document.getElementById("f-src").value;
+  const dst    = document.getElementById("f-dst").value;
+  const proto  = document.getElementById("f-proto").value;
+  const ports  = document.getElementById("f-ports").value.trim();
+  const action = document.getElementById("f-action").value;
+
+  let parts = [];
+  if (src)   parts.push(`saddr ${src}`);
+  if (dst)   parts.push(`daddr ${dst}`);
+  if (proto && ports) {
+    const ps = ports.split(",").map(p => p.trim());
+    parts.push(`${proto} dport ${ps.length > 1 ? "{ " + ps.join(", ") + " }" : ps[0]}`);
+  }
+  parts.push("counter");
+  if (action === "accept") parts.push("accept");
+  else if (action === "drop") parts.push('log prefix "DROP_CUSTOM: " drop');
+  else parts.push('log prefix "LOG_CUSTOM: "');
+
+  document.getElementById("rule-preview").textContent = parts.join(" ");
+}
+
+function clearForm() {
+  document.getElementById("f-src").value    = "";
+  document.getElementById("f-dst").value    = "";
+  document.getElementById("f-proto").value  = "";
+  document.getElementById("f-ports").value  = "";
+  document.getElementById("f-action").value = "accept";
+  document.getElementById("form-msg").textContent = "";
+  updatePreview();
+}
+
+// ──────────────────────────────────────────────
+// Init
+// ──────────────────────────────────────────────
+(async () => {
+  await loadVlans();
+  await loadRules();
+  await checkStatus();
+  setInterval(checkStatus, 10000);
+})();
+</script>
+</body>
+</html>

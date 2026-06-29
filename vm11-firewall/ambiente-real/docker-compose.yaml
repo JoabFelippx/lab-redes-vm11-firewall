@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  firewall:
+    image: joabfsl/firewall-vm11-tralho:v1
+    container_name: vm11-firewall
+    network_mode: host        # compartilha interfaces e netfilter do host
+    privileged: true          # necessário para nft, sysctl, etc.
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+    volumes:
+      # Bind mount: o app escreve o ruleset atualizado direto no arquivo
+      # real do host. Assim, um `systemctl restart nftables` no host (ou
+      # um boot da VM) carrega exatamente o que está em produção, mesmo
+      # que o container esteja parado.
+      - /etc/nftables.conf:/etc/nftables.conf
+    environment:
+      - LDAP_SERVER=ldap://10.0.10.10:389
+      - LDAP_BASE_DN=dc=labredes,dc=local
+      - LDAP_OU_USERS=ou=Users
+      - LDAP_OU_GROUPS=ou=Groups
+      - LDAP_ADMIN_DN=cn=admin,dc=labredes,dc=local
+      - LDAP_ADMIN_PASSWORD=admin123
+      - SECRET_KEY=troque-esta-chave-em-producao
+      - WEB_PORT=5000

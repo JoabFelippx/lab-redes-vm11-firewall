@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login — Firewall VM11</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e2e8f0;
+    }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.4);
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 1.75rem;
+    }
+    .logo-icon {
+      font-size: 2.5rem;
+      line-height: 1;
+    }
+    .logo h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-top: .5rem;
+    }
+    .logo p {
+      font-size: .8rem;
+      color: #64748b;
+      margin-top: .25rem;
+    }
+
+    .field { margin-bottom: 1rem; }
+    label {
+      display: block;
+      font-size: .8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: .35rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    input {
+      width: 100%;
+      padding: .65rem .85rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 7px;
+      color: #f1f5f9;
+      font-size: .95rem;
+      transition: border-color .2s;
+      outline: none;
+    }
+    input:focus { border-color: #3b82f6; }
+
+    .pass-wrapper { position: relative; }
+    .pass-wrapper input { padding-right: 2.5rem; }
+    .btn-eye {
+      position: absolute;
+      right: .65rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #64748b;
+      font-size: 1rem;
+      padding: 0;
+      line-height: 1;
+      transition: color .2s;
+    }
+    .btn-eye:hover { color: #94a3b8; }
+
+    .btn {
+      width: 100%;
+      padding: .7rem;
+      border: none;
+      border-radius: 7px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, filter .2s;
+    }
+    .btn:hover  { filter: brightness(1.1); }
+    .btn:active { opacity: .85; }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: #fff;
+      margin-bottom: .75rem;
+    }
+    .btn-visitor {
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+    }
+    .btn-visitor:hover { color: #e2e8f0; border-color: #64748b; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin: 1rem 0;
+      color: #475569;
+      font-size: .8rem;
+    }
+    .divider::before, .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #334155;
+    }
+
+    .error-msg {
+      background: #450a0a;
+      border: 1px solid #7f1d1d;
+      color: #fca5a5;
+      border-radius: 7px;
+      padding: .65rem .85rem;
+      font-size: .85rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .badge-visitor {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      font-size: .75rem;
+      color: #f59e0b;
+      background: #1c1400;
+      border: 1px solid #78350f;
+      border-radius: 5px;
+      padding: .2rem .5rem;
+      margin-top: .5rem;
+    }
+
+    .visitor-note {
+      font-size: .78rem;
+      color: #64748b;
+      text-align: center;
+      margin-top: 1.25rem;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">🔥</div>
+      <h1>Firewall VM11</h1>
+      <p>Gerenciador de regras nftables</p>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="field">
+      <label>Usuário LDAP</label>
+      <input type="text" id="username" placeholder="ex: joao.silva" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <div class="pass-wrapper">
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+        <button type="button" class="btn-eye" id="btnToggleSenha" title="Mostrar/ocultar senha">👁</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btnLogin">Entrar</button>
+
+    <div class="divider">ou</div>
+
+    <button class="btn btn-visitor" id="btnVisitor">
+      👁 Entrar como visitante
+    </button>
+    <div style="text-align:center">
+      <span class="badge-visitor">⚠ Somente leitura</span>
+    </div>
+
+    <p class="visitor-note">
+      Visitantes podem visualizar as regras, mas não adicionar ou remover.
+    </p>
+  </div>
+
+  <script>
+    const errorMsg       = document.getElementById("errorMsg");
+    const btnLogin       = document.getElementById("btnLogin");
+    const btnVisitor     = document.getElementById("btnVisitor");
+    const btnToggleSenha = document.getElementById("btnToggleSenha");
+    const passwordInput  = document.getElementById("password");
+
+    btnToggleSenha.addEventListener("click", () => {
+      const visible = passwordInput.type === "text";
+      passwordInput.type = visible ? "password" : "text";
+      btnToggleSenha.textContent = visible ? "👁" : "🙈";
+    });
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = "block";
+    }
+    function clearError() {
+      errorMsg.style.display = "none";
+    }
+
+    async function doLogin(username, password) {
+      const res  = await fetch("/login", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        window.location.href = "/";
+      } else {
+        showError(data.error || "Erro desconhecido.");
+      }
+    }
+
+    btnLogin.addEventListener("click", () => {
+      clearError();
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
+      if (!username || !password) {
+        showError("Preencha usuário e senha para autenticar via LDAP.");
+        return;
+      }
+      btnLogin.disabled = true;
+      btnLogin.textContent = "Autenticando…";
+      doLogin(username, password).finally(() => {
+        btnLogin.disabled = false;
+        btnLogin.textContent = "Entrar";
+      });
+    });
+
+    btnVisitor.addEventListener("click", () => {
+      clearError();
+      doLogin("", "");
+    });
+
+    // Enter submete o formulário
+    document.addEventListener("keydown", e => {
+      if (e.key === "Enter") btnLogin.click();
+    });
+  </script>
+</body>
+</html>
