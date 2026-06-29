@@ -4,21 +4,6 @@ Gerenciador web de regras **nftables** com autenticação LDAP, interface dark-t
 
 ---
 
-## Sumário
-
-1. [Visão geral](#visão-geral)
-2. [Pré-requisitos](#pré-requisitos)
-3. [Configuração das VLANs](#configuração-das-vlans)
-4. [Configuração do nftables](#configuração-do-nftables)
-5. [Deploy com Docker](#deploy-com-docker)
-6. [Verificação](#verificação)
-7. [Acesso e autenticação](#acesso-e-autenticação)
-8. [Dependências externas](#dependências-externas)
-9. [Estrutura dos arquivos](#estrutura-dos-arquivos)
-10. [Variáveis de ambiente](#variáveis-de-ambiente)
-
----
-
 ## Visão geral
 
 ```
@@ -62,34 +47,39 @@ sudo nano /etc/netplan/99-vlans.yaml
 network:
   version: 2
   ethernets:
-    ens7:
+    ens4:
       dhcp4: false
   vlans:
-    ens7.10:
+    ens4.10:
       id: 10
-      link: ens7
+      link: ens4
       addresses: [10.0.10.1/24]
-    ens7.20:
+    ens4.20:
       id: 20
-      link: ens7
+      link: ens4
       addresses: [10.0.20.1/24]
-    ens7.30:
+    ens4.30:
       id: 30
-      link: ens7
+      link: ens4
       addresses: [10.0.30.1/24]
-    ens7.40:
+    ens4.40:
       id: 40
-      link: ens7
+      link: ens4
       addresses: [10.0.40.1/24]
-    ens7.50:
+    ens4.50:
       id: 50
-      link: ens7
+      link: ens4
       addresses: [10.0.50.1/24]
-    ens7.60:
+    ens4.60:
       id: 60
-      link: ens7
+      link: ens4
       addresses: [10.0.60.1/24]
 ```
+
+```bash
+sudo chmod 600 /etc/netplan/99-vlans.yaml
+```
+
 ```bash
 sudo netplan apply
 ```
@@ -137,13 +127,17 @@ table inet filter {
         iifname "br-*" accept
 
         # VLANs (ens7.*) podem sair pela interface de internet (ens3)
-        iifname "ens7*" oifname "ens3" accept
+        iifname "ens4*" oifname "ens3" accept
 
         # Exemplos de regras internas
         ip daddr 10.0.20.0/24 tcp dport { 80, 443 } counter accept
         ip daddr 10.0.10.10   tcp dport { 389, 636 } counter accept
 
-        counter log prefix "DROP_DEFAULT: " drop
+        # IMPORTANTE: "limit rate" evita que um flood (scan, ataque, ou
+        # tráfego anômalo) gere milhões de linhas de log e encha o disco
+        # da VM. Sem isso, cada pacote bloqueado gera uma linha.
+        counter limit rate 10/second log prefix "DROP_DEFAULT: " drop
+        counter drop
     }
 
     chain input  { type filter hook input  priority 0; policy accept; }
@@ -171,7 +165,68 @@ sudo nft list ruleset   # deve mostrar inet filter e ip nat_custom
 
 ---
 
-## Deploy com Docker
+## Proteção contra flood e rotação de logs
+
+> **Contexto:** durante os testes, a VM11 já sofreu com flood de tráfego
+> (scan/ataque/loop de rede) que gerou volume alto de logs via a regra
+> `DROP_DEFAULT`, enchendo o disco da VM. As medidas abaixo devem ser
+> aplicadas **no provisionamento da VM** (seja via Terraform/cloud-init,
+> seja manualmente por SSH) para que o problema não se repita a cada novo
+> deploy.
+
+### 1. Rate-limit no log do nftables (já incluso no `/etc/nftables.conf` acima)
+
+A regra de DROP padrão usa `limit rate 10/second` antes do `log`, então no
+máximo 10 linhas por segundo são escritas, independente do volume de
+pacotes bloqueados:
+
+```
+counter limit rate 10/second log prefix "DROP_DEFAULT: " drop
+counter drop
+```
+
+Isso preserva a auditoria (você ainda vê que está sendo atacado) sem deixar
+o disco ser consumido por um flood.
+
+### 2. Rotação de log do sistema (rsyslog/journald)
+
+Adicionar/garantir o arquivo `/etc/logrotate.d/rsyslog` na VM com algo como:
+
+```
+/var/log/syslog
+/var/log/mail.log
+/var/log/kern.log
+/var/log/auth.log
+/var/log/user.log
+/var/log/cron.log
+{
+        rotate 4
+        weekly
+        size 50M
+        missingok
+        notifempty
+        compress
+        delaycompress
+        sharedscripts
+        postrotate
+                /usr/lib/rsyslog/rsyslog-rotate
+        endscript
+}
+```
+
+E limitar o journald persistente em `/etc/systemd/journald.conf`:
+
+```ini
+[Journal]
+SystemMaxUse=200M
+```
+
+Depois de criar/alterar:
+
+```bash
+sudo systemctl restart systemd-journald
+sudo systemctl restart rsyslog
+```
 
 ### 1. Instalar Docker
 
